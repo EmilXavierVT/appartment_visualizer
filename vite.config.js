@@ -58,6 +58,12 @@ function flattenJsonLd(value) {
 }
 
 function extractTitle(html) {
+  const readerTitle = html.match(/^Title:\s*(.+)$/im)
+
+  if (readerTitle?.[1]) {
+    return cleanText(readerTitle[1])
+  }
+
   const product = extractJsonLd(html).find((entry) => isProduct(entry))
 
   if (product?.name) {
@@ -103,6 +109,12 @@ function imageFromJsonLdValue(value) {
 }
 
 function extractImageUrl(html, url) {
+  const markdownImage = html.match(/!\[[^\]]*\]\((https?:[^)\s]+)[^)]*\)/i)
+
+  if (markdownImage?.[1]) {
+    return absoluteUrl(markdownImage[1], url)
+  }
+
   const product = extractJsonLd(html).find((entry) => isProduct(entry))
   const structuredImage = imageFromJsonLdValue(product?.image)
 
@@ -125,6 +137,34 @@ function extractImageUrl(html, url) {
   }
 
   return null
+}
+
+function readerProxyUrl(url) {
+  return `https://r.jina.ai/http://r.jina.ai/http://${url}`
+}
+
+async function fetchProductPage(url) {
+  const directResponse = await fetch(url, {
+    headers: browserHeaders(),
+  })
+
+  if (directResponse.ok) {
+    return { html: await directResponse.text(), source: 'direct' }
+  }
+
+  if (directResponse.status !== 403) {
+    return { error: `Product page returned ${directResponse.status}.`, status: 502 }
+  }
+
+  const fallbackResponse = await fetch(readerProxyUrl(url), {
+    headers: browserHeaders({ Accept: 'text/plain,*/*;q=0.8' }),
+  })
+
+  if (!fallbackResponse.ok) {
+    return { error: `Product page returned 403 and fallback returned ${fallbackResponse.status}.`, status: 502 }
+  }
+
+  return { html: await fallbackResponse.text(), source: 'reader fallback' }
 }
 
 function findJsonLdEntriesByType(html, typeName) {
@@ -765,10 +805,51 @@ function extractDimensionsFromUrl(url) {
 }
 
 function extractDimensions(html, url = '') {
-  return extractStructuredDimensions(html)
+  return extractIkeaReaderDimensions(html)
+    || extractStructuredDimensions(html)
     || extractDimensionsFromUrl(url)
     || extractDimensionsFromText(extractTitle(html), 'page title', 2, url)
     || extractDimensionsFromText(html, 'page text', 1, url)
+}
+
+function extractIkeaReaderDimensions(text) {
+  if (!/^Title:/im.test(text) || !/##\s*Produktmål/i.test(text)) {
+    return null
+  }
+
+  const productSection = text.split(/##\s*Produktmål/i)[1]?.split(/###\s*Pakkens mål og vægt/i)[0]
+
+  if (!productSection) {
+    return null
+  }
+
+  const lines = productSection.split('\n').map((line) => cleanText(line.replace(/^\*\s*/, '')))
+  const blockedLabels = /(indvendig|indvendigt|skuffe|madras|maks|belastning|pakke|vægt|vaegt)/i
+  const readValue = (labels) => {
+    for (const line of lines) {
+      if (blockedLabels.test(line)) {
+        continue
+      }
+
+      const match = line.match(/^([^:]+):\s*(\d+(?:[.,]\d+)?)\s*(cm|mm|m|in|inch|inches)?/i)
+
+      if (!match) {
+        continue
+      }
+
+      if (labels.some((label) => label.test(match[1]))) {
+        return toCentimeters(parseNumber(match[2]), match[3] || 'cm')
+      }
+    }
+
+    return null
+  }
+
+  const width = readValue([/^bredde$/i, /^width$/i])
+  const depth = readValue([/^dybde$/i, /^depth$/i, /^længde$/i, /^laengde$/i, /^length$/i])
+  const height = readValue([/^højde$/i, /^hojde$/i, /^height$/i])
+
+  return width && depth && height ? buildDimensions(width, depth, height, 'IKEA reader fallback product measurements', 2) : null
 }
 
 function findSlashDepthCm(html) {
@@ -996,16 +1077,14 @@ export default defineConfig({
               return
             }
 
-            const fetchResponse = await fetch(url, {
-              headers: browserHeaders(),
-            })
+            const page = await fetchProductPage(url)
 
-            if (!fetchResponse.ok) {
-              sendJson(response, 502, { error: `Product page returned ${fetchResponse.status}.` })
+            if (page.error) {
+              sendJson(response, page.status || 502, { error: page.error })
               return
             }
 
-            const html = await fetchResponse.text()
+            const html = page.html
             const platformData = await extractPlatformProductData(url)
             const productName = platformData?.name || extractTitle(html)
             const productImageUrl = platformData?.imageUrl || extractImageUrl(html, url)
@@ -1021,8 +1100,11 @@ export default defineConfig({
             }
 
             const dimensions = parsedDimensions ? adjustDimensionsForShape(parsedDimensions, html, shape) : estimatedDimensions
+            const warnings = page.source === 'reader fallback'
+              ? [...dimensions.warnings, 'IKEA blocked the server request, so dimensions were parsed through a fallback reader. A real 3D model may not be available for this import.']
+              : dimensions.warnings
 
-            sendJson(response, 200, { name: productName, url, imageUrl: productImageUrl, modelUrl: productModelUrl, shape, ...dimensions })
+            sendJson(response, 200, { name: productName, url, imageUrl: productImageUrl, modelUrl: productModelUrl, shape, ...dimensions, warnings })
           } catch (error) {
             sendJson(response, 500, { error: error instanceof Error ? error.message : 'Could not parse product page.' })
           }

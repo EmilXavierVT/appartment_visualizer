@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="42%" r="58%">
+      <stop offset="0" stop-color="#fff" />
+      <stop offset="1" stop-color="#f8f4fb" />
+    </radialGradient>
+    <linearGradient id="body" x1="28" y1="112" x2="84" y2="28" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#07165f" />
+      <stop offset="0.55" stop-color="#0056c7" />
+      <stop offset="1" stop-color="#089cf0" />
+    </linearGradient>
+    <linearGradient id="leaf" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#64c96c" />
+      <stop offset="1" stop-color="#006c63" />
+    </linearGradient>
+  </defs>
+  <circle cx="64" cy="64" r="61" fill="url(#bg)" />
+  <g transform="translate(5 16)">
+    <path d="M33 84c-8-9-10-21-3-33 13 8 22 18 24 33-7-3-14-3-21 0Z" fill="url(#leaf)" />
+    <path d="M23 97c-7-7-10-17-6-28 13 3 24 12 29 26-8-3-15-3-23 2Z" fill="url(#leaf)" />
+    <path d="M90 89c10-10 12-22 5-34-13 7-23 19-24 35 6-4 13-4 19-1Z" fill="url(#leaf)" />
+    <path d="M99 101c8-6 12-16 9-27-14 2-25 10-31 24 8-3 15-2 22 3Z" fill="url(#leaf)" />
+    <path d="M38 67c5-12 12-20 24-24 4 13 1 26-9 37-2-7-7-11-15-13Z" fill="url(#leaf)" />
+    <path d="M35 62c7 3 12 8 16 16" fill="none" stroke="#ffd25b" stroke-width="8" stroke-linecap="round" />
+    <path d="M84 62c-7 4-12 10-15 17" fill="none" stroke="#ffd25b" stroke-width="8" stroke-linecap="round" />
+    <path d="M44 57c5 3 8 7 10 13" fill="none" stroke="#006ce0" stroke-width="6" stroke-linecap="round" />
+    <path d="M90 57c-6 3-10 8-12 14" fill="none" stroke="#006ce0" stroke-width="6" stroke-linecap="round" />
+  </g>
+  <g>
+    <path d="M62 35c12-13 36-8 43 10-15 1-25 6-29 19-5 17 4 38-12 55H33c12-20 28-31 27-52-.6-13-7-23 2-32Z" fill="url(#body)" />
+    <path d="M61 35c-13 19 10 29 23 32-18 4-34-3-38-16 2-8 7-13 15-16Z" fill="#00145f" opacity=".92" />
+    <path d="M58 37c-3-13 1-22 14-28" fill="none" stroke="#062173" stroke-width="4" stroke-linecap="round" />
+    <path d="M62 36c-1-14 5-24 18-29" fill="none" stroke="#062173" stroke-width="4" stroke-linecap="round" />
+    <path d="M66 37c2-13 9-22 23-25" fill="none" stroke="#062173" stroke-width="4" stroke-linecap="round" />
+    <circle cx="71" cy="9" r="6" fill="#07349b" />
+    <circle cx="81" cy="7" r="6" fill="#07349b" />
+    <circle cx="91" cy="12" r="6" fill="#07349b" />
+    <path d="M59 43c10 0 18 3 27 10-12 5-23 3-31-6 1-2 2-3 4-4Z" fill="#fff" />
+    <circle cx="70" cy="45" r="7" fill="#031b66" />
+    <circle cx="72" cy="43" r="2.2" fill="#fff" />
+    <path d="M89 50c12 1 21 6 28 16-11-4-20-6-31-8Z" fill="#d9c6af" />
+    <path d="M101 56c5 1 8 3 11 7" fill="none" stroke="#2a211a" stroke-width="3" stroke-linecap="round" />
+  </g>
+</svg>
