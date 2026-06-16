@@ -593,7 +593,7 @@ export default function App() {
           <p className="eyebrow">Metaroom PDF + GLB</p>
           <h1>Apartment Visualizer</h1>
           <p className="intro">
-            This viewer uses the scanned GLB for both layers, so the scan and hybrid shell have the exact same shape.
+            Hej skat, her kan du bruge lidt tid. Du kan smide et link ind fra et møbel. IKEA er gode, de har 3D modeller, ellers har jeg lavet nogle placeholders du kan vælge imellem.
           </p>
         </div>
 
