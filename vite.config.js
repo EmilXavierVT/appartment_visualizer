@@ -1,6 +1,9 @@
 import { defineConfig } from 'vite'
+import { mkdir, readFile, writeFile } from 'node:fs/promises'
+import { dirname, resolve } from 'node:path'
 
 const BROWSER_USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36'
+const LAYOUT_FILE = resolve(process.env.LAYOUT_FILE || 'data/layout.json')
 
 function browserHeaders(extraHeaders = {}) {
   return {
@@ -941,6 +944,26 @@ function estimateDimensionsFromProductText(html, url, shape) {
     return { widthCm: 36, depthCm: 36, heightCm: 55, source: 'estimated pendant lamp', confidence: 0, warnings }
   }
 
+  if (shape === 'ceiling-lamp') {
+    return { widthCm: 42, depthCm: 42, heightCm: 18, source: 'estimated ceiling lamp', confidence: 0, warnings }
+  }
+
+  if (shape === 'wall-lamp') {
+    return { widthCm: 24, depthCm: 18, heightCm: 34, source: 'estimated wall lamp', confidence: 0, warnings }
+  }
+
+  if (shape === 'chandelier') {
+    return { widthCm: 62, depthCm: 62, heightCm: 72, source: 'estimated chandelier', confidence: 0, warnings }
+  }
+
+  if (shape === 'led-strip') {
+    return { widthCm: 200, depthCm: 3, heightCm: 3, source: 'estimated LED strip', confidence: 0, warnings }
+  }
+
+  if (shape === 'string-lights') {
+    return { widthCm: 240, depthCm: 4, heightCm: 32, source: 'estimated string lights', confidence: 0, warnings }
+  }
+
   if (shape === 'tv') {
     return { widthCm: 145, depthCm: 24, heightCm: 85, source: 'estimated TV', confidence: 0, warnings }
   }
@@ -989,6 +1012,26 @@ function classifyFurnitureText(text) {
 
   if (/(gulvlampe|floor lamp|standerlampe)/i.test(normalized)) {
     return 'floor-lamp'
+  }
+
+  if (/(lysekrone|chandelier|krystal(?:lampe)?)/i.test(normalized)) {
+    return 'chandelier'
+  }
+
+  if (/(led\s*-?\s*strip|led\s*-?\s*bånd|led\s*-?\s*baand|lysstrimmel|light strip|strip light)/i.test(normalized)) {
+    return 'led-strip'
+  }
+
+  if (/(lyskæde|lyskaede|fairy lights|string lights|guirlande|guirlandelys)/i.test(normalized)) {
+    return 'string-lights'
+  }
+
+  if (/(væglampe|vaeglampe|wall lamp|wall light|sconce|applique)/i.test(normalized)) {
+    return 'wall-lamp'
+  }
+
+  if (/(loftlampe|ceiling lamp|ceiling light|plafond|plafondlampe|spotlampe|spotlight|downlight)/i.test(normalized)) {
+    return 'ceiling-lamp'
   }
 
   if (/(tv bord|tv-bord|mediabord|media console|tv stand|tv unit|lowboard)/i.test(normalized)) {
@@ -1072,6 +1115,74 @@ function sendJson(response, statusCode, data) {
   response.end(JSON.stringify(data))
 }
 
+async function readLayout() {
+  try {
+    const parsed = JSON.parse(await readFile(LAYOUT_FILE, 'utf8'))
+
+    return Array.isArray(parsed.items) ? parsed : { items: [] }
+  } catch (error) {
+    if (error?.code === 'ENOENT') {
+      return { items: [] }
+    }
+
+    throw error
+  }
+}
+
+async function writeLayout(layout) {
+  await mkdir(dirname(LAYOUT_FILE), { recursive: true })
+  await writeFile(LAYOUT_FILE, JSON.stringify(layout, null, 2))
+}
+
+function readRequestJson(request) {
+  return new Promise((resolveJson, rejectJson) => {
+    let body = ''
+
+    request.on('data', (chunk) => {
+      body += chunk
+
+      if (body.length > 2_000_000) {
+        rejectJson(new Error('Request body is too large.'))
+        request.destroy()
+      }
+    })
+
+    request.on('end', () => {
+      try {
+        resolveJson(JSON.parse(body || '{}'))
+      } catch {
+        rejectJson(new Error('Invalid JSON body.'))
+      }
+    })
+
+    request.on('error', rejectJson)
+  })
+}
+
+function sanitizeLayoutItems(items) {
+  if (!Array.isArray(items)) {
+    return []
+  }
+
+  return items.slice(0, 200).map((item) => ({
+    id: String(item.id || `${Date.now()}-${Math.random().toString(16).slice(2)}`),
+    name: String(item.name || 'Imported furniture'),
+    width: Number(item.width) || 0.1,
+    depth: Number(item.depth) || 0.1,
+    height: Number(item.height) || 0.1,
+    x: Number(item.x) || 0,
+    y: Number(item.y) || 0,
+    z: Number(item.z) || 0,
+    rotation: Number(item.rotation) || 0,
+    url: item.url ? String(item.url) : undefined,
+    imageUrl: item.imageUrl ? String(item.imageUrl) : undefined,
+    modelUrl: item.modelUrl ? String(item.modelUrl) : undefined,
+    shape: item.shape ? String(item.shape) : 'box',
+    source: item.source ? String(item.source) : undefined,
+    warnings: Array.isArray(item.warnings) ? item.warnings.map(String).slice(0, 10) : [],
+  }))
+}
+
 function sendBinary(response, statusCode, buffer, contentType) {
   response.statusCode = statusCode
   response.setHeader('Content-Type', contentType || 'application/octet-stream')
@@ -1089,6 +1200,32 @@ export default defineConfig({
     {
       name: 'product-parser-api',
       configureServer(server) {
+        server.middlewares.use('/api/layout', async (request, response) => {
+          try {
+            if (request.method === 'GET') {
+              sendJson(response, 200, await readLayout())
+              return
+            }
+
+            if (request.method === 'PUT') {
+              const body = await readRequestJson(request)
+              const layout = {
+                items: sanitizeLayoutItems(body.items),
+                updatedAt: new Date().toISOString(),
+              }
+
+              await writeLayout(layout)
+              sendJson(response, 200, layout)
+              return
+            }
+
+            response.setHeader('Allow', 'GET, PUT')
+            sendJson(response, 405, { error: 'Method not allowed.' })
+          } catch (error) {
+            sendJson(response, 500, { error: error instanceof Error ? error.message : 'Could not handle layout.' })
+          }
+        })
+
         server.middlewares.use('/api/image', async (request, response) => {
           try {
             const requestUrl = new URL(request.url, 'http://localhost')

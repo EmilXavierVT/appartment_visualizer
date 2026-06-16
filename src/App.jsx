@@ -6,6 +6,8 @@ import * as THREE from 'three'
 const SCAN_MODEL_PATH = '/scan.glb'
 const KNOWN_HEIGHT = 2.53
 const DEFAULT_SCAN_METRICS = { width: 6.07, depth: 5.8, height: KNOWN_HEIGHT }
+const STORAGE_KEY = 'apartment-visualizer:furniture-items'
+const LAYOUT_API_PATH = '/api/layout'
 const DRAG_FLOOR_PLANE = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0)
 const FURNITURE_SHAPES = [
   ['box', 'Box'],
@@ -21,6 +23,11 @@ const FURNITURE_SHAPES = [
   ['floor-lamp', 'Floor lamp'],
   ['table-lamp', 'Table lamp'],
   ['pendant-lamp', 'Pendant lamp'],
+  ['ceiling-lamp', 'Ceiling lamp'],
+  ['wall-lamp', 'Wall lamp'],
+  ['chandelier', 'Chandelier'],
+  ['led-strip', 'LED strip'],
+  ['string-lights', 'String lights'],
   ['tv', 'TV / fjernsyn'],
   ['curtains', 'Curtains / gardiner'],
   ['rug', 'Rug / tæppe'],
@@ -38,6 +45,16 @@ function getFloorIntersection(event) {
   const point = new THREE.Vector3()
 
   return event.ray.intersectPlane(DRAG_FLOOR_PLANE, point) ? point : null
+}
+
+function loadStoredFurnitureItems() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]')
+
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    return []
+  }
 }
 
 function normalizeScanClone(scene) {
@@ -461,6 +478,108 @@ function PendantLampFurniture({ width, depth, height }) {
   )
 }
 
+function CeilingLampFurniture({ width, depth, height }) {
+  const radius = Math.max(Math.min(width, depth) * 0.42, 0.12)
+  const bodyHeight = Math.max(height * 0.52, 0.1)
+
+  return (
+    <group>
+      <CylinderPart position={[0, height - 0.025, 0]} radius={radius * 0.72} depth={0.05} color="#c98eb0" />
+      <mesh castShadow receiveShadow position={[0, height - bodyHeight / 2 - 0.04, 0]}>
+        <sphereGeometry args={[radius, 32, 16]} />
+        <meshStandardMaterial color="#ffe2f0" roughness={0.5} transparent opacity={0.88} />
+      </mesh>
+      <pointLight position={[0, height - bodyHeight * 0.55, 0]} intensity={0.82} distance={2.4} color="#ffd6eb" />
+    </group>
+  )
+}
+
+function WallLampFurniture({ width, depth, height }) {
+  const backDepth = Math.max(depth * 0.18, 0.035)
+  const shadeDepth = Math.max(depth * 0.62, 0.12)
+
+  return (
+    <group>
+      <BoxPart position={[0, height / 2, -depth / 2 + backDepth / 2]} size={[width * 0.55, height * 0.72, backDepth]} color="#a9789c" />
+      <CylinderPart position={[0, height * 0.48, -depth * 0.12]} radius={Math.max(width * 0.035, 0.018)} depth={shadeDepth} color="#6d4d65" />
+      <mesh castShadow receiveShadow position={[0, height * 0.48, depth * 0.18]} rotation={[Math.PI / 2, 0, 0]}>
+        <coneGeometry args={[Math.max(width * 0.32, 0.1), Math.max(width * 0.22, 0.07), Math.max(height * 0.36, 0.12), 32]} />
+        <meshStandardMaterial color="#ffe0ef" roughness={0.56} transparent opacity={0.88} />
+      </mesh>
+      <pointLight position={[0, height * 0.48, depth * 0.28]} intensity={0.62} distance={1.8} color="#ffd6eb" />
+    </group>
+  )
+}
+
+function ChandelierFurniture({ width, depth, height }) {
+  const radius = Math.max(Math.min(width, depth) * 0.34, 0.16)
+  const cordHeight = height * 0.34
+  const ringY = height * 0.48
+
+  return (
+    <group>
+      <CylinderPart position={[0, height - 0.025, 0]} radius={radius * 0.34} depth={0.05} color="#c98eb0" />
+      <CylinderPart position={[0, height - cordHeight / 2, 0]} radius={0.012} depth={cordHeight} color="#6d4d65" />
+      <mesh castShadow receiveShadow position={[0, ringY, 0]} rotation={[Math.PI / 2, 0, 0]}>
+        <torusGeometry args={[radius, 0.018, 12, 48]} />
+        <meshStandardMaterial color="#a9789c" roughness={0.45} metalness={0.15} />
+      </mesh>
+      {[0, 1, 2, 3, 4, 5].map((index) => {
+        const angle = (index / 6) * Math.PI * 2
+        const x = Math.cos(angle) * radius
+        const z = Math.sin(angle) * radius
+
+        return (
+          <group key={index} position={[x, ringY - height * 0.12, z]}>
+            <CylinderPart position={[0, height * 0.06, 0]} radius={0.01} depth={height * 0.12} color="#6d4d65" />
+            <mesh castShadow receiveShadow position={[0, 0, 0]}>
+              <sphereGeometry args={[Math.max(radius * 0.13, 0.035), 16, 10]} />
+              <meshStandardMaterial color="#fff1b8" emissive="#ffd6a3" emissiveIntensity={0.35} roughness={0.35} />
+            </mesh>
+            <pointLight intensity={0.16} distance={1.4} color="#ffe0b8" />
+          </group>
+        )
+      })}
+    </group>
+  )
+}
+
+function LedStripFurniture({ width, depth, height }) {
+  const stripHeight = Math.max(height, 0.025)
+
+  return (
+    <group>
+      <BoxPart position={[0, stripHeight / 2, 0]} size={[width, stripHeight, Math.max(depth, 0.025)]} color="#ffc0df" />
+      <pointLight position={[0, stripHeight + 0.02, 0]} intensity={0.45} distance={Math.max(width, depth, 1.4)} color="#ff9bd0" />
+    </group>
+  )
+}
+
+function StringLightsFurniture({ width, depth, height }) {
+  const count = 8
+
+  return (
+    <group>
+      <BoxPart position={[0, height, 0]} size={[width, 0.018, Math.max(depth, 0.018)]} color="#6d4d65" />
+      {Array.from({ length: count }).map((_, index) => {
+        const x = -width / 2 + (width / (count - 1)) * index
+        const y = height - Math.sin((index / (count - 1)) * Math.PI) * height * 0.18
+
+        return (
+          <group key={index} position={[x, y, 0]}>
+            <CylinderPart position={[0, -0.05, 0]} radius={0.008} depth={0.1} color="#6d4d65" />
+            <mesh castShadow receiveShadow position={[0, -0.12, 0]}>
+              <sphereGeometry args={[0.035, 16, 10]} />
+              <meshStandardMaterial color="#fff1b8" emissive="#ffd6a3" emissiveIntensity={0.45} roughness={0.35} />
+            </mesh>
+            <pointLight position={[0, -0.12, 0]} intensity={0.12} distance={0.9} color="#ffe0b8" />
+          </group>
+        )
+      })}
+    </group>
+  )
+}
+
 function TvFurniture({ width, depth, height }) {
   const screenDepth = Math.max(depth * 0.18, 0.035)
   const standHeight = Math.max(height * 0.16, 0.08)
@@ -577,6 +696,16 @@ function FurnitureShape({ furniture }) {
       return <TableLampFurniture {...props} />
     case 'pendant-lamp':
       return <PendantLampFurniture {...props} />
+    case 'ceiling-lamp':
+      return <CeilingLampFurniture {...props} />
+    case 'wall-lamp':
+      return <WallLampFurniture {...props} />
+    case 'chandelier':
+      return <ChandelierFurniture {...props} />
+    case 'led-strip':
+      return <LedStripFurniture {...props} />
+    case 'string-lights':
+      return <StringLightsFurniture {...props} />
     case 'tv':
       return <TvFurniture {...props} />
     case 'curtains':
@@ -703,8 +832,9 @@ export default function App() {
   const [showWallMeasurements, setShowWallMeasurements] = useState(true)
   const [productUrl, setProductUrl] = useState('')
   const [productStatus, setProductStatus] = useState('')
-  const [furnitureItems, setFurnitureItems] = useState([])
+  const [furnitureItems, setFurnitureItems] = useState(loadStoredFurnitureItems)
   const [menuOpen, setMenuOpen] = useState(false)
+  const [layoutLoaded, setLayoutLoaded] = useState(false)
   const [selectedFurnitureId, setSelectedFurnitureId] = useState(null)
   const [draggingFurnitureId, setDraggingFurnitureId] = useState(null)
   const dragStateRef = useRef(null)
@@ -717,6 +847,62 @@ export default function App() {
     setTargetMetrics(calibrateRawMetrics(rawScanMetrics))
     setMeasurementsInitialized(true)
   }, [measurementsInitialized, rawScanMetrics])
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(furnitureItems))
+  }, [furnitureItems])
+
+  useEffect(() => {
+    let cancelled = false
+
+    async function loadCloudLayout() {
+      try {
+        const response = await fetch(LAYOUT_API_PATH)
+
+        if (!response.ok) {
+          throw new Error('Could not load saved layout.')
+        }
+
+        const data = await response.json()
+
+        if (!cancelled && Array.isArray(data.items)) {
+          setFurnitureItems(data.items)
+        }
+      } catch {
+        // Keep localStorage fallback if cloud layout is unavailable.
+      } finally {
+        if (!cancelled) {
+          setLayoutLoaded(true)
+        }
+      }
+    }
+
+    loadCloudLayout()
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!layoutLoaded) {
+      return undefined
+    }
+
+    const timeout = window.setTimeout(async () => {
+      try {
+        await fetch(LAYOUT_API_PATH, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ items: furnitureItems }),
+        })
+      } catch {
+        // localStorage already has the latest state as an offline fallback.
+      }
+    }, 450)
+
+    return () => window.clearTimeout(timeout)
+  }, [furnitureItems, layoutLoaded])
 
   const updateFurniture = (id, key, value) => {
     setFurnitureItems((current) => current.map((item) => item.id === id ? { ...item, [key]: value } : item))
@@ -736,6 +922,13 @@ export default function App() {
 
   const removeFurniture = (id) => {
     setFurnitureItems((current) => current.filter((item) => item.id !== id))
+  }
+
+  const clearFurnitureItems = () => {
+    setFurnitureItems([])
+    setSelectedFurnitureId(null)
+    setDraggingFurnitureId(null)
+    dragStateRef.current = null
   }
 
   const collapseMenuOnDoubleClick = (event) => {
@@ -893,6 +1086,7 @@ export default function App() {
         {furnitureItems.length > 0 ? (
           <section>
             <h2>Elements</h2>
+            <button type="button" className="reset-button" onClick={clearFurnitureItems}>Clear saved elements</button>
             {furnitureItems.map((item) => (
               <FurnitureElementControls
                 key={item.id}
