@@ -929,6 +929,46 @@ function estimateDimensionsFromProductText(html, url, shape) {
     return { widthCm: 100, depthCm: 45, heightCm: 120, source: 'estimated cabinet', confidence: 0, warnings }
   }
 
+  if (shape === 'floor-lamp') {
+    return { widthCm: 38, depthCm: 38, heightCm: 155, source: 'estimated floor lamp', confidence: 0, warnings }
+  }
+
+  if (shape === 'table-lamp') {
+    return { widthCm: 28, depthCm: 28, heightCm: 48, source: 'estimated table lamp', confidence: 0, warnings }
+  }
+
+  if (shape === 'pendant-lamp') {
+    return { widthCm: 36, depthCm: 36, heightCm: 55, source: 'estimated pendant lamp', confidence: 0, warnings }
+  }
+
+  if (shape === 'tv') {
+    return { widthCm: 145, depthCm: 24, heightCm: 85, source: 'estimated TV', confidence: 0, warnings }
+  }
+
+  if (shape === 'curtains') {
+    return { widthCm: 140, depthCm: 5, heightCm: 245, source: 'estimated curtains', confidence: 0, warnings }
+  }
+
+  if (shape === 'rug') {
+    return { widthCm: 200, depthCm: 140, heightCm: 2, source: 'estimated rug', confidence: 0, warnings }
+  }
+
+  if (shape === 'mirror') {
+    return { widthCm: 70, depthCm: 4, heightCm: 160, source: 'estimated mirror', confidence: 0, warnings }
+  }
+
+  if (shape === 'plant') {
+    return { widthCm: 55, depthCm: 55, heightCm: 120, source: 'estimated plant', confidence: 0, warnings }
+  }
+
+  if (shape === 'wall-art') {
+    return { widthCm: 90, depthCm: 4, heightCm: 70, source: 'estimated wall art', confidence: 0, warnings }
+  }
+
+  if (shape === 'media-console') {
+    return { widthCm: 160, depthCm: 42, heightCm: 55, source: 'estimated media console', confidence: 0, warnings }
+  }
+
   return null
 }
 
@@ -945,6 +985,50 @@ function classifyFurnitureText(text) {
 
   if (/(kontinental|boxmadras|madras|mattress|bed|seng|sengeramme)/i.test(normalized)) {
     return 'bed'
+  }
+
+  if (/(gulvlampe|floor lamp|standerlampe)/i.test(normalized)) {
+    return 'floor-lamp'
+  }
+
+  if (/(tv bord|tv-bord|mediabord|media console|tv stand|tv unit|lowboard)/i.test(normalized)) {
+    return 'media-console'
+  }
+
+  if (/(fjernsyn|television|\btv\b|smart tv|fladskærm|fladskaerm)/i.test(normalized)) {
+    return 'tv'
+  }
+
+  if (/(gardin|gardiner|curtain|curtains|drapes|forhæng|forhaeng)/i.test(normalized)) {
+    return 'curtains'
+  }
+
+  if (/(gulvtæppe|gulvtaeppe|tæppe|taeppe|rug|carpet)/i.test(normalized)) {
+    return 'rug'
+  }
+
+  if (/(spejl|mirror)/i.test(normalized)) {
+    return 'mirror'
+  }
+
+  if (/(plante|plant|potteplante|kunstplante|vase)/i.test(normalized)) {
+    return 'plant'
+  }
+
+  if (/(billede|plakat|poster|maleri|wall art|kunsttryk|ramme|picture frame)/i.test(normalized)) {
+    return 'wall-art'
+  }
+
+  if (/(bordlampe|table lamp|desk lamp|skrivebordslampe|natlampe)/i.test(normalized)) {
+    return 'table-lamp'
+  }
+
+  if (/(pendel|pendant|loftlampe|ceiling lamp|hængelampe|haengelampe)/i.test(normalized)) {
+    return 'pendant-lamp'
+  }
+
+  if (/(lampe|lamp|lighting|belysning)/i.test(normalized)) {
+    return 'table-lamp'
   }
 
   if (/(oval|ellipse|elliptisk).*?(bord|table)|(?:bord|table).*?(oval|ellipse|elliptisk)/i.test(normalized)) {

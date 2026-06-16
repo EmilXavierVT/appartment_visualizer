@@ -18,6 +18,16 @@ const FURNITURE_SHAPES = [
   ['oval-table', 'Oval table'],
   ['round-table', 'Round table'],
   ['cabinet', 'Cabinet / shelf'],
+  ['floor-lamp', 'Floor lamp'],
+  ['table-lamp', 'Table lamp'],
+  ['pendant-lamp', 'Pendant lamp'],
+  ['tv', 'TV / fjernsyn'],
+  ['curtains', 'Curtains / gardiner'],
+  ['rug', 'Rug / tæppe'],
+  ['mirror', 'Mirror'],
+  ['plant', 'Plant'],
+  ['wall-art', 'Wall art'],
+  ['media-console', 'Media console'],
 ]
 
 function clamp(value, min, max) {
@@ -392,6 +402,153 @@ function CabinetFurniture({ width, depth, height }) {
   )
 }
 
+function FloorLampFurniture({ width, depth, height }) {
+  const footprint = Math.min(width, depth)
+  const baseRadius = Math.max(footprint * 0.26, 0.12)
+  const poleHeight = height * 0.72
+  const shadeHeight = Math.max(height * 0.24, 0.18)
+  const shadeRadius = Math.max(footprint * 0.42, 0.16)
+
+  return (
+    <group>
+      <CylinderPart position={[0, 0.03, 0]} radius={baseRadius} depth={0.06} color="#d7b7cf" />
+      <CylinderPart position={[0, poleHeight / 2, 0]} radius={Math.max(footprint * 0.035, 0.018)} depth={poleHeight} color="#9a6f92" />
+      <mesh castShadow receiveShadow position={[0, poleHeight + shadeHeight / 2, 0]}>
+        <coneGeometry args={[shadeRadius, shadeRadius * 0.68, shadeHeight, 32]} />
+        <meshStandardMaterial color="#ffe0ef" roughness={0.62} metalness={0.02} transparent opacity={0.88} />
+      </mesh>
+      <pointLight position={[0, poleHeight + shadeHeight * 0.45, 0]} intensity={0.75} distance={2.4} color="#ffd6eb" />
+    </group>
+  )
+}
+
+function TableLampFurniture({ width, depth, height }) {
+  const footprint = Math.min(width, depth)
+  const baseHeight = height * 0.16
+  const stemHeight = height * 0.42
+  const shadeHeight = height * 0.34
+  const shadeRadius = Math.max(footprint * 0.45, 0.12)
+
+  return (
+    <group>
+      <CylinderPart position={[0, baseHeight / 2, 0]} radius={Math.max(footprint * 0.28, 0.08)} depth={baseHeight} color="#a9789c" />
+      <CylinderPart position={[0, baseHeight + stemHeight / 2, 0]} radius={Math.max(footprint * 0.045, 0.016)} depth={stemHeight} color="#6d4d65" />
+      <mesh castShadow receiveShadow position={[0, baseHeight + stemHeight + shadeHeight / 2, 0]}>
+        <coneGeometry args={[shadeRadius, shadeRadius * 0.72, shadeHeight, 32]} />
+        <meshStandardMaterial color="#ffe2f0" roughness={0.62} metalness={0.02} transparent opacity={0.88} />
+      </mesh>
+      <pointLight position={[0, baseHeight + stemHeight + shadeHeight * 0.48, 0]} intensity={0.58} distance={1.8} color="#ffd6eb" />
+    </group>
+  )
+}
+
+function PendantLampFurniture({ width, depth, height }) {
+  const footprint = Math.min(width, depth)
+  const cordHeight = height * 0.52
+  const shadeHeight = Math.max(height * 0.34, 0.16)
+  const shadeRadius = Math.max(footprint * 0.42, 0.12)
+
+  return (
+    <group>
+      <CylinderPart position={[0, cordHeight / 2, 0]} radius={Math.max(footprint * 0.018, 0.01)} depth={cordHeight} color="#5b4555" />
+      <CylinderPart position={[0, height - 0.025, 0]} radius={Math.max(footprint * 0.18, 0.07)} depth={0.05} color="#a9789c" />
+      <mesh castShadow receiveShadow position={[0, cordHeight + shadeHeight / 2, 0]}>
+        <sphereGeometry args={[shadeRadius, 32, 16, 0, Math.PI * 2, 0, Math.PI * 0.72]} />
+        <meshStandardMaterial color="#ffe0ef" roughness={0.56} metalness={0.02} transparent opacity={0.88} />
+      </mesh>
+      <pointLight position={[0, cordHeight + shadeHeight * 0.28, 0]} intensity={0.75} distance={2.2} color="#ffd6eb" />
+    </group>
+  )
+}
+
+function TvFurniture({ width, depth, height }) {
+  const screenDepth = Math.max(depth * 0.18, 0.035)
+  const standHeight = Math.max(height * 0.16, 0.08)
+
+  return (
+    <group>
+      <BoxPart position={[0, standHeight + (height - standHeight) / 2, 0]} size={[width, height - standHeight, screenDepth]} color="#11131a" />
+      <BoxPart position={[0, standHeight + (height - standHeight) / 2, depth / 2 + 0.01]} size={[width * 0.9, (height - standHeight) * 0.82, 0.02]} color="#1f2533" />
+      <BoxPart position={[0, standHeight / 2, 0]} size={[width * 0.08, standHeight, depth * 0.34]} color="#2d2b30" />
+      <BoxPart position={[0, 0.015, 0]} size={[width * 0.42, 0.03, depth * 0.5]} color="#2d2b30" />
+    </group>
+  )
+}
+
+function CurtainsFurniture({ width, depth, height }) {
+  const panelWidth = width * 0.46
+  const rodHeight = height - 0.03
+
+  return (
+    <group>
+      <CylinderPart position={[0, rodHeight, 0]} radius={0.025} depth={width} color="#aa7aa0" />
+      <BoxPart position={[-width * 0.25, height / 2 - 0.04, 0]} size={[panelWidth, height * 0.9, Math.max(depth, 0.035)]} color="#f4c7de" />
+      <BoxPart position={[width * 0.25, height / 2 - 0.04, 0]} size={[panelWidth, height * 0.9, Math.max(depth, 0.035)]} color="#f1b6d4" />
+      {[-0.42, -0.28, -0.14, 0.14, 0.28, 0.42].map((x) => (
+        <BoxPart key={x} position={[x * width, height / 2 - 0.04, depth / 2 + 0.01]} size={[0.018, height * 0.86, 0.018]} color="#dc8fba" />
+      ))}
+    </group>
+  )
+}
+
+function RugFurniture({ width, depth, height }) {
+  return (
+    <group>
+      <BoxPart position={[0, Math.max(height, 0.015) / 2, 0]} size={[width, Math.max(height, 0.015), depth]} color="#f0a9cc" />
+      <BoxPart position={[0, Math.max(height, 0.015) + 0.004, 0]} size={[width * 0.86, 0.008, depth * 0.78]} color="#ffe4f0" />
+    </group>
+  )
+}
+
+function MirrorFurniture({ width, depth, height }) {
+  return (
+    <group>
+      <BoxPart position={[0, height / 2, 0]} size={[width, height, Math.max(depth, 0.04)]} color="#d7b7cf" />
+      <BoxPart position={[0, height / 2, depth / 2 + 0.012]} size={[width * 0.82, height * 0.86, 0.018]} color="#dff4ff" />
+    </group>
+  )
+}
+
+function PlantFurniture({ width, depth, height }) {
+  const potHeight = height * 0.28
+  const stemHeight = height * 0.48
+
+  return (
+    <group>
+      <CylinderPart position={[0, potHeight / 2, 0]} radius={Math.min(width, depth) * 0.28} depth={potHeight} color="#be83a5" />
+      <CylinderPart position={[0, potHeight + stemHeight / 2, 0]} radius={0.025} depth={stemHeight} color="#2f6d4f" />
+      {[[-0.18, 0.08], [0.18, -0.02], [-0.12, -0.16], [0.14, 0.15], [0, 0]].map(([x, z], index) => (
+        <mesh key={index} castShadow receiveShadow position={[x * width, potHeight + stemHeight + index * 0.025, z * depth]} scale={[width * 0.22, height * 0.13, depth * 0.08]}>
+          <sphereGeometry args={[1, 24, 12]} />
+          <meshStandardMaterial color={index % 2 ? '#42a66a' : '#1d8059'} roughness={0.8} />
+        </mesh>
+      ))}
+    </group>
+  )
+}
+
+function WallArtFurniture({ width, depth, height }) {
+  return (
+    <group>
+      <BoxPart position={[0, height / 2, 0]} size={[width, height, Math.max(depth, 0.035)]} color="#f7d7e7" />
+      <BoxPart position={[0, height / 2, depth / 2 + 0.012]} size={[width * 0.82, height * 0.74, 0.018]} color="#85c9d6" />
+      <BoxPart position={[-width * 0.12, height * 0.54, depth / 2 + 0.024]} size={[width * 0.22, height * 0.28, 0.012]} color="#ffd164" />
+      <BoxPart position={[width * 0.16, height * 0.42, depth / 2 + 0.024]} size={[width * 0.28, height * 0.22, 0.012]} color="#006ce0" />
+    </group>
+  )
+}
+
+function MediaConsoleFurniture({ width, depth, height }) {
+  return (
+    <group>
+      <BoxPart position={[0, height / 2, 0]} size={[width, height, depth]} color="#8d6b54" />
+      <BoxPart position={[-width * 0.24, height * 0.55, depth / 2 + 0.012]} size={[width * 0.34, height * 0.55, 0.02]} color="#6f523f" />
+      <BoxPart position={[width * 0.24, height * 0.55, depth / 2 + 0.012]} size={[width * 0.34, height * 0.55, 0.02]} color="#6f523f" />
+      <BoxPart position={[0, height * 0.18, depth / 2 + 0.02]} size={[width * 0.16, 0.025, 0.025]} color="#2f261f" />
+    </group>
+  )
+}
+
 function FurnitureShape({ furniture }) {
   const props = { width: furniture.width, depth: furniture.depth, height: furniture.height }
 
@@ -414,6 +571,26 @@ function FurnitureShape({ furniture }) {
       return <RoundTableFurniture {...props} />
     case 'cabinet':
       return <CabinetFurniture {...props} />
+    case 'floor-lamp':
+      return <FloorLampFurniture {...props} />
+    case 'table-lamp':
+      return <TableLampFurniture {...props} />
+    case 'pendant-lamp':
+      return <PendantLampFurniture {...props} />
+    case 'tv':
+      return <TvFurniture {...props} />
+    case 'curtains':
+      return <CurtainsFurniture {...props} />
+    case 'rug':
+      return <RugFurniture {...props} />
+    case 'mirror':
+      return <MirrorFurniture {...props} />
+    case 'plant':
+      return <PlantFurniture {...props} />
+    case 'wall-art':
+      return <WallArtFurniture {...props} />
+    case 'media-console':
+      return <MediaConsoleFurniture {...props} />
     default:
       return <BoxFurniture {...props} />
   }
