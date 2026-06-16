@@ -1,0 +1,265 @@
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  min-height: 100%;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+body {
+  background: #f1ede6;
+  color: #17171b;
+}
+
+.app-shell {
+  position: relative;
+  min-height: 100vh;
+}
+
+.sidebar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 30;
+  width: min(360px, calc(100vw - 32px));
+  height: 100vh;
+  padding: 88px 20px 32px;
+  background: linear-gradient(180deg, #fbf9f4 0%, #ece4d7 100%);
+  border-right: 1px solid rgba(23, 23, 27, 0.08);
+  overflow: auto;
+  box-shadow: 0 18px 60px rgba(23, 23, 27, 0.18);
+  transform: translateX(-105%);
+  transition: transform 180ms ease;
+}
+
+.sidebar.is-open {
+  transform: translateX(0);
+}
+
+.sidebar section {
+  margin-top: 24px;
+  padding-top: 18px;
+  border-top: 1px solid rgba(23, 23, 27, 0.08);
+}
+
+.eyebrow {
+  margin: 0 0 8px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #7d6b52;
+}
+
+h1,
+h2,
+p {
+  margin: 0;
+}
+
+h1 {
+  font-size: 32px;
+  line-height: 1.05;
+}
+
+h2 {
+  margin-bottom: 12px;
+  font-size: 14px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.intro,
+.summary p {
+  margin-top: 12px;
+  color: #4f4f57;
+  line-height: 1.5;
+}
+
+.control,
+.toggle {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.control span,
+.toggle span {
+  font-size: 14px;
+}
+
+.control input[type='range'] {
+  width: 100%;
+}
+
+.control input[type='number'],
+.control input[type='url'],
+.control select {
+  width: 100%;
+  padding: 9px 10px;
+  border: 1px solid rgba(23, 23, 27, 0.16);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.72);
+  color: #17171b;
+  font: inherit;
+}
+
+.control strong {
+  font-size: 13px;
+  color: #7d6b52;
+}
+
+.reset-button {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid rgba(125, 107, 82, 0.34);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.58);
+  color: #5c4d38;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.reset-button:hover {
+  background: rgba(255, 255, 255, 0.86);
+}
+
+.reset-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+}
+
+.product-form {
+  display: grid;
+  gap: 8px;
+}
+
+.status-text {
+  margin-top: 10px;
+  color: #5f5447;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.warning-text {
+  color: #9a4b00;
+  font-weight: 700;
+}
+
+.element-card {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 16px;
+  padding: 12px;
+  border: 1px solid rgba(125, 107, 82, 0.2);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.44);
+}
+
+.element-card .control {
+  margin-bottom: 0;
+}
+
+.element-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.element-header h3 {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.25;
+}
+
+.element-header p {
+  margin-top: 4px;
+  color: #7d6b52;
+  font-size: 12px;
+}
+
+.text-button {
+  border: 0;
+  background: transparent;
+  color: #8a3b22;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.toggle {
+  grid-template-columns: 18px 1fr;
+  align-items: center;
+}
+
+.burger {
+  position: fixed;
+  top: 18px;
+  left: 18px;
+  z-index: 40;
+  display: grid;
+  gap: 5px;
+  width: 52px;
+  height: 52px;
+  padding: 14px 12px;
+  border: 0;
+  border-radius: 14px;
+  background: rgba(251, 249, 244, 0.94);
+  box-shadow: 0 12px 30px rgba(23, 23, 27, 0.16);
+  cursor: pointer;
+}
+
+.burger span {
+  display: block;
+  width: 100%;
+  height: 2px;
+  border-radius: 999px;
+  background: #17171b;
+  transition: transform 180ms ease, opacity 180ms ease;
+}
+
+.burger.is-open span:nth-child(1) {
+  transform: translateY(7px) rotate(45deg);
+}
+
+.burger.is-open span:nth-child(2) {
+  opacity: 0;
+}
+
+.burger.is-open span:nth-child(3) {
+  transform: translateY(-7px) rotate(-45deg);
+}
+
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  border: 0;
+  background: rgba(23, 23, 27, 0.28);
+}
+
+.viewer {
+  width: 100vw;
+  height: 100vh;
+}
+
+canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+@media (max-width: 960px) {
+  .sidebar {
+    width: min(100vw - 24px, 360px);
+    padding-top: 84px;
+  }
+}
