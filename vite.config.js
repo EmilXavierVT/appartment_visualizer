@@ -1,5 +1,19 @@
 import { defineConfig } from 'vite'
 
+const BROWSER_USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36'
+
+function browserHeaders(extraHeaders = {}) {
+  return {
+    'User-Agent': BROWSER_USER_AGENT,
+    Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+    'Accept-Language': 'da-DK,da;q=0.9,en-US;q=0.8,en;q=0.7',
+    'Cache-Control': 'no-cache',
+    Pragma: 'no-cache',
+    'Upgrade-Insecure-Requests': '1',
+    ...extraHeaders,
+  }
+}
+
 function cleanText(value = '') {
   return value
     .replace(/<[^>]*>/g, ' ')
@@ -261,11 +275,10 @@ async function extractSofaCompanyProductData(url) {
 
   const response = await fetch(endpoint, {
     method: 'POST',
-    headers: {
+    headers: browserHeaders({
       'Content-Type': 'application/json',
-      'User-Agent': 'Mozilla/5.0 ApartmentVisualizer/1.0',
       Accept: 'application/json',
-    },
+    }),
     body: JSON.stringify({ query, variables: { url_key: urlKey } }),
   })
 
@@ -922,10 +935,9 @@ export default defineConfig({
             }
 
             const fetchResponse = await fetch(url, {
-              headers: {
-                'User-Agent': 'Mozilla/5.0 ApartmentVisualizer/1.0',
+              headers: browserHeaders({
                 Accept: 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
-              },
+              }),
             })
 
             if (!fetchResponse.ok) {
@@ -957,10 +969,9 @@ export default defineConfig({
             }
 
             const fetchResponse = await fetch(url, {
-              headers: {
-                'User-Agent': 'Mozilla/5.0 ApartmentVisualizer/1.0',
+              headers: browserHeaders({
                 Accept: 'model/gltf-binary,model/gltf+json,application/octet-stream,*/*;q=0.8',
-              },
+              }),
             })
 
             if (!fetchResponse.ok) {
@@ -986,10 +997,7 @@ export default defineConfig({
             }
 
             const fetchResponse = await fetch(url, {
-              headers: {
-                'User-Agent': 'Mozilla/5.0 ApartmentVisualizer/1.0',
-                Accept: 'text/html,application/xhtml+xml',
-              },
+              headers: browserHeaders(),
             })
 
             if (!fetchResponse.ok) {
