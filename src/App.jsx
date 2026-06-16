@@ -525,6 +525,18 @@ export default function App() {
     setFurnitureItems((current) => current.filter((item) => item.id !== id))
   }
 
+  const collapseMenuOnDoubleClick = (event) => {
+    if (!window.matchMedia('(max-width: 640px)').matches) {
+      return
+    }
+
+    if (event.target.closest('button, input, select, textarea, a, label')) {
+      return
+    }
+
+    setMenuOpen(false)
+  }
+
   const importProduct = async (event) => {
     event.preventDefault()
     setProductStatus('Looking for product dimensions...')
@@ -562,7 +574,7 @@ export default function App() {
   }
 
   return (
-    <div className="app-shell">
+    <div className={`app-shell ${menuOpen ? 'menu-open' : ''}`}>
       <button
         type="button"
         className={`burger ${menuOpen ? 'is-open' : ''}`}
@@ -576,7 +588,7 @@ export default function App() {
         <span />
       </button>
 
-      <aside id="control-panel" className={`sidebar ${menuOpen ? 'is-open' : ''}`}>
+      <aside id="control-panel" className={`sidebar ${menuOpen ? 'is-open' : ''}`} onDoubleClick={collapseMenuOnDoubleClick}>
         <div>
           <p className="eyebrow">Metaroom PDF + GLB</p>
           <h1>Apartment Visualizer</h1>
