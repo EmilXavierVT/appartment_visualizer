@@ -794,6 +794,9 @@ function FurnitureElementControls({ item, targetMetrics, onChange, onRemove }) {
           {FURNITURE_SHAPES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
         </select>
       </label>
+      <DimensionInput label="Width" value={item.width} onChange={(value) => onChange('width', value)} />
+      <DimensionInput label="Depth" value={item.depth} onChange={(value) => onChange('depth', value)} />
+      <DimensionInput label="Height" value={item.height} onChange={(value) => onChange('height', value)} />
       <NumberInput label="Position X" value={item.x} min={-targetMetrics.width / 2} max={targetMetrics.width / 2} step={0.01} onChange={(value) => onChange('x', value)} />
       <NumberInput label="Position Y" value={item.y} min={0} max={targetMetrics.height} step={0.01} onChange={(value) => onChange('y', value)} />
       <NumberInput label="Position Z" value={item.z} min={-targetMetrics.depth / 2} max={targetMetrics.depth / 2} step={0.01} onChange={(value) => onChange('z', value)} />
@@ -808,6 +811,22 @@ function NumberInput({ label, value, min, max, step, onChange, suffix = 'm' }) {
       <span>{label}</span>
       <input type="range" min={min} max={max} step={step} value={value} onChange={(event) => onChange(Number(event.target.value))} />
       <strong>{value.toFixed(2)} {suffix}</strong>
+    </label>
+  )
+}
+
+function DimensionInput({ label, value, onChange }) {
+  return (
+    <label className="control">
+      <span>{label}</span>
+      <input
+        type="number"
+        min="1"
+        step="1"
+        value={Math.round(value * 100)}
+        onChange={(event) => onChange(clamp(Number(event.target.value) / 100, 0.01, 20))}
+      />
+      <strong>cm</strong>
     </label>
   )
 }
