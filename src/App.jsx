@@ -1,4 +1,4 @@
-import React, { Suspense, useEffect, useMemo, useState } from 'react'
+import React, { Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { Bounds, OrbitControls, PerspectiveCamera, Text, useGLTF } from '@react-three/drei'
 import { Canvas } from '@react-three/fiber'
 import * as THREE from 'three'
@@ -6,6 +6,7 @@ import * as THREE from 'three'
 const SCAN_MODEL_PATH = '/scan.glb'
 const KNOWN_HEIGHT = 2.53
 const DEFAULT_SCAN_METRICS = { width: 6.07, depth: 5.8, height: KNOWN_HEIGHT }
+const DRAG_FLOOR_PLANE = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0)
 const FURNITURE_SHAPES = [
   ['box', 'Box'],
   ['bed', 'Bed'],
@@ -21,6 +22,12 @@ const FURNITURE_SHAPES = [
 
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value))
+}
+
+function getFloorIntersection(event) {
+  const point = new THREE.Vector3()
+
+  return event.ray.intersectPlane(DRAG_FLOOR_PLANE, point) ? point : null
 }
 
 function normalizeScanClone(scene) {
@@ -436,14 +443,27 @@ function RemoteFurnitureModel({ furniture }) {
   return <primitive object={prepared.model} scale={[scale.x, scale.y, scale.z]} />
 }
 
-function FurnitureModel({ furniture }) {
+function FurnitureModel({ furniture, selected, onPointerDown, onPointerMove, onPointerUp }) {
   if (!furniture) {
     return null
   }
 
   return (
-    <group position={[furniture.x, 0, furniture.z]} rotation={[0, THREE.MathUtils.degToRad(furniture.rotation), 0]}>
+    <group
+      position={[furniture.x, furniture.y, furniture.z]}
+      rotation={[0, THREE.MathUtils.degToRad(furniture.rotation), 0]}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
+      onPointerCancel={onPointerUp}
+    >
       {furniture.modelUrl ? <RemoteFurnitureModel furniture={furniture} /> : <FurnitureShape furniture={furniture} />}
+      {selected ? (
+        <mesh position={[0, furniture.height / 2, 0]}>
+          <boxGeometry args={[furniture.width + 0.06, furniture.height + 0.06, furniture.depth + 0.06]} />
+          <meshBasicMaterial color="#ff79b8" wireframe transparent opacity={0.72} depthWrite={false} />
+        </mesh>
+      ) : null}
       <FurnitureLabel furniture={furniture} />
     </group>
   )
@@ -469,6 +489,7 @@ function FurnitureElementControls({ item, targetMetrics, onChange, onRemove }) {
         </select>
       </label>
       <NumberInput label="Position X" value={item.x} min={-targetMetrics.width / 2} max={targetMetrics.width / 2} step={0.01} onChange={(value) => onChange('x', value)} />
+      <NumberInput label="Position Y" value={item.y} min={0} max={targetMetrics.height} step={0.01} onChange={(value) => onChange('y', value)} />
       <NumberInput label="Position Z" value={item.z} min={-targetMetrics.depth / 2} max={targetMetrics.depth / 2} step={0.01} onChange={(value) => onChange('z', value)} />
       <NumberInput label="Rotation" value={item.rotation} min={-180} max={180} step={1} onChange={(value) => onChange('rotation', value)} suffix="deg" />
     </article>
@@ -507,6 +528,9 @@ export default function App() {
   const [productStatus, setProductStatus] = useState('')
   const [furnitureItems, setFurnitureItems] = useState([])
   const [menuOpen, setMenuOpen] = useState(false)
+  const [selectedFurnitureId, setSelectedFurnitureId] = useState(null)
+  const [draggingFurnitureId, setDraggingFurnitureId] = useState(null)
+  const dragStateRef = useRef(null)
 
   useEffect(() => {
     if (!rawScanMetrics || measurementsInitialized) {
@@ -519,6 +543,18 @@ export default function App() {
 
   const updateFurniture = (id, key, value) => {
     setFurnitureItems((current) => current.map((item) => item.id === id ? { ...item, [key]: value } : item))
+  }
+
+  const updateFurniturePosition = (id, x, z) => {
+    setFurnitureItems((current) => current.map((item) => (
+      item.id === id
+        ? {
+          ...item,
+          x: clamp(x, -targetMetrics.width / 2, targetMetrics.width / 2),
+          z: clamp(z, -targetMetrics.depth / 2, targetMetrics.depth / 2),
+        }
+        : item
+    )))
   }
 
   const removeFurniture = (id) => {
@@ -535,6 +571,61 @@ export default function App() {
     }
 
     setMenuOpen(false)
+  }
+
+  const startFurnitureDrag = (item, event) => {
+    event.stopPropagation()
+    const floorPoint = getFloorIntersection(event)
+
+    setSelectedFurnitureId(item.id)
+
+    if (!floorPoint) {
+      return
+    }
+
+    dragStateRef.current = {
+      id: item.id,
+      offsetX: item.x - floorPoint.x,
+      offsetZ: item.z - floorPoint.z,
+    }
+    setDraggingFurnitureId(item.id)
+
+    if (event.target.setPointerCapture) {
+      event.target.setPointerCapture(event.pointerId)
+    }
+  }
+
+  const moveFurnitureDrag = (event) => {
+    if (!dragStateRef.current) {
+      return
+    }
+
+    event.stopPropagation()
+    const floorPoint = getFloorIntersection(event)
+
+    if (!floorPoint) {
+      return
+    }
+
+    updateFurniturePosition(
+      dragStateRef.current.id,
+      floorPoint.x + dragStateRef.current.offsetX,
+      floorPoint.z + dragStateRef.current.offsetZ,
+    )
+  }
+
+  const stopFurnitureDrag = (event) => {
+    if (!dragStateRef.current) {
+      return
+    }
+
+    event.stopPropagation()
+    dragStateRef.current = null
+    setDraggingFurnitureId(null)
+
+    if (event.target.releasePointerCapture) {
+      event.target.releasePointerCapture(event.pointerId)
+    }
   }
 
   const importProduct = async (event) => {
@@ -556,6 +647,7 @@ export default function App() {
         depth: data.depthCm / 100,
         height: data.heightCm / 100,
         x: 0,
+        y: 0,
         z: 0,
         rotation: 0,
         url: data.url,
@@ -655,22 +747,31 @@ export default function App() {
       {menuOpen ? <button type="button" className="backdrop" aria-label="Close controls" onClick={() => setMenuOpen(false)} /> : null}
 
       <main className="viewer">
-        <Canvas shadows dpr={[1, 2]} gl={{ localClippingEnabled: true }}>
+        <Canvas shadows dpr={[1, 2]} gl={{ localClippingEnabled: true }} onPointerMissed={() => setSelectedFurnitureId(null)}>
           <color attach="background" args={['#f5f3ee']} />
           <PerspectiveCamera makeDefault position={[5.8, 6.4, 6.9]} fov={42} />
           <ambientLight intensity={1.4} />
           <directionalLight castShadow intensity={1.4} position={[8, 12, 5]} shadow-mapSize-width={2048} shadow-mapSize-height={2048} />
           <Suspense fallback={null}>
-            <Bounds fit clip observe margin={1.2}>
+            <Bounds fit clip margin={1.2}>
               <ScanModel opacity={scanOpacity} cutHeight={cutHeight} targetMetrics={targetMetrics} onRawMetricsChange={setRawScanMetrics} />
               <ScanDerivedShell visible={showOverlay} opacity={overlayOpacity} targetMetrics={targetMetrics} />
-              {furnitureItems.map((item) => <FurnitureModel key={item.id} furniture={item} />)}
+              {furnitureItems.map((item) => (
+                <FurnitureModel
+                  key={item.id}
+                  furniture={item}
+                  selected={item.id === selectedFurnitureId}
+                  onPointerDown={(event) => startFurnitureDrag(item, event)}
+                  onPointerMove={moveFurnitureDrag}
+                  onPointerUp={stopFurnitureDrag}
+                />
+              ))}
               <MeasurementLabels metrics={targetMetrics} />
               <InsideWallMeasurements visible={showWallMeasurements} targetMetrics={targetMetrics} />
             </Bounds>
           </Suspense>
           <gridHelper args={[20, 20, '#888888', '#c7c7c7']} position={[0, 0.002, 0]} />
-          <OrbitControls makeDefault target={[0, 1.1, 0]} />
+          <OrbitControls makeDefault target={[0, 1.1, 0]} enabled={!draggingFurnitureId} />
         </Canvas>
       </main>
     </div>
