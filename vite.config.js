@@ -113,6 +113,185 @@ function extractImageUrl(html, url) {
   return null
 }
 
+function findJsonLdEntriesByType(html, typeName) {
+  return extractJsonLd(html).filter((entry) => {
+    const type = entry?.['@type']
+    const types = Array.isArray(type) ? type : [type]
+
+    return types.some((item) => String(item).toLowerCase() === typeName.toLowerCase())
+  })
+}
+
+function modelAssetFromValue(value) {
+  if (!value) {
+    return null
+  }
+
+  if (typeof value === 'string') {
+    return value
+  }
+
+  if (Array.isArray(value)) {
+    return value.map(modelAssetFromValue).find(Boolean) || null
+  }
+
+  if (typeof value === 'object') {
+    return modelAssetFromValue(value.contentUrl || value.url || value.encoding)
+  }
+
+  return null
+}
+
+function scoreModelUrl(url = '') {
+  let score = 0
+
+  if (/\.glb(?:\?|$)/i.test(url)) score += 5
+  if (/\/glb\//i.test(url) && !/glb_draco/i.test(url)) score += 4
+  if (/simple/i.test(url)) score += 3
+  if (/rqp1/i.test(url)) score += 2
+  if (/iqp1/i.test(url)) score += 1
+  if (/\.gltf(?:\?|$)/i.test(url)) score -= 2
+  if (/glb_draco/i.test(url)) score -= 1
+
+  return score
+}
+
+function extractModelUrl(html, url) {
+  const structuredUrls = findJsonLdEntriesByType(html, '3DModel')
+    .flatMap((entry) => [entry.encoding, entry.contentUrl, entry.url])
+    .map(modelAssetFromValue)
+    .filter(Boolean)
+    .map((assetUrl) => absoluteUrl(assetUrl, url))
+    .filter(Boolean)
+
+  const regexUrls = [...html.matchAll(/https?:[^"'<>\s]+\.(?:glb|gltf)(?:\?[^"'<>\s]*)?/gi)].map((match) => cleanText(match[0]))
+  const candidates = [...new Set([...structuredUrls, ...regexUrls])]
+    .filter((candidate) => /\.(?:glb|gltf)(?:\?|$)/i.test(candidate))
+    .sort((a, b) => scoreModelUrl(b) - scoreModelUrl(a))
+
+  return candidates[0] || null
+}
+
+function extractUrlKey(url) {
+  try {
+    const parsedUrl = new URL(url)
+    return parsedUrl.pathname.split('/').filter(Boolean).at(-1) || ''
+  } catch {
+    return ''
+  }
+}
+
+function extractStorePath(url) {
+  try {
+    const parsedUrl = new URL(url)
+    const firstPathPart = parsedUrl.pathname.split('/').filter(Boolean)[0]
+
+    return /^[a-z]{2}-[a-z]{2}$/i.test(firstPathPart) ? `/${firstPathPart.toLowerCase()}` : ''
+  } catch {
+    return ''
+  }
+}
+
+function firstFiniteNumber(...values) {
+  for (const value of values) {
+    const parsed = typeof value === 'number' ? value : parseNumber(String(value || '').replace(/[^\d.,-]/g, ''))
+
+    if (Number.isFinite(parsed) && parsed > 0) {
+      return parsed
+    }
+  }
+
+  return null
+}
+
+function dimensionsFromSofaCompanyProduct(product) {
+  let sizeSpecs = {}
+
+  try {
+    sizeSpecs = product.size_specifications ? JSON.parse(product.size_specifications) : {}
+  } catch {
+    sizeSpecs = {}
+  }
+
+  const attributes = Object.fromEntries((product.s_attributes || []).map((attribute) => [attribute.attribute_code, attribute.attribute_value]))
+  const width = firstFiniteNumber(sizeSpecs.sofa_width, attributes.sofa_width, attributes.filter_sofa_width)
+  const depth = firstFiniteNumber(sizeSpecs.sofa_depth, attributes.sofa_depth, attributes.filter_sofa_depth)
+  const height = firstFiniteNumber(sizeSpecs.sofa_height, attributes.sofa_height, attributes.filter_sofa_height)
+
+  if (!width || !depth || !height) {
+    return null
+  }
+
+  return buildDimensions(width, depth, height, 'SofaCompany GraphQL size specifications', 4)
+}
+
+async function extractSofaCompanyProductData(url) {
+  let parsedUrl
+
+  try {
+    parsedUrl = new URL(url)
+  } catch {
+    return null
+  }
+
+  if (!/sofacompany\.com$/i.test(parsedUrl.hostname)) {
+    return null
+  }
+
+  const urlKey = extractUrlKey(url)
+
+  if (!urlKey) {
+    return null
+  }
+
+  const endpoint = `${parsedUrl.origin}${extractStorePath(url)}/graphql`
+  const query = `query Product($url_key: String!) {
+    products(filter: { url_key: { eq: $url_key }, allow_any_visibility: { eq: "true" } }, pageSize: 1) {
+      items {
+        name
+        sku
+        url_key
+        size_specifications
+        s_attributes { attribute_code attribute_label attribute_value }
+        image { url }
+        media_gallery { url label }
+      }
+    }
+  }`
+
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'User-Agent': 'Mozilla/5.0 ApartmentVisualizer/1.0',
+      Accept: 'application/json',
+    },
+    body: JSON.stringify({ query, variables: { url_key: urlKey } }),
+  })
+
+  if (!response.ok) {
+    return null
+  }
+
+  const data = await response.json()
+  const product = data?.data?.products?.items?.[0]
+  const dimensions = product ? dimensionsFromSofaCompanyProduct(product) : null
+
+  if (!product || !dimensions) {
+    return null
+  }
+
+  return {
+    name: cleanText(product.name || ''),
+    imageUrl: absoluteUrl(product.image?.url || product.media_gallery?.find((item) => item?.url)?.url, url),
+    dimensions,
+  }
+}
+
+async function extractPlatformProductData(url) {
+  return extractSofaCompanyProductData(url)
+}
+
 function parseNumber(value) {
   return Number(value.replace(',', '.'))
 }
@@ -474,6 +653,7 @@ function extractFootprintWithSeparateHeight(text, url, source, confidence) {
 
 function extractDimensionsFromText(text, source, confidence = 1, url = '') {
   const normalized = cleanText(text)
+  const allowUnlabeledCompact = !/url/i.test(source)
   const number = '(\\d+(?:[.,]\\d+)?)'
   const unit = '(cm|mm|m|in|inch|inches)?'
   const labelGap = '[^0-9]{0,24}'
@@ -543,29 +723,37 @@ function extractDimensionsFromText(text, source, confidence = 1, url = '') {
     return buildCompactDimensions(match, source, confidence)
   }
 
-  const fallbackMatches = compactMatches
-    .map((match) => ({ match, dimensions: buildCompactDimensions(match, `${source} fallback`, Math.max(confidence - 1, 0)), score: scoreCompactDimensionMatch(normalized, match) }))
-    .filter(({ dimensions }) => dimensions)
-    .sort((a, b) => b.score - a.score)
+  if (allowUnlabeledCompact) {
+    const fallbackMatches = compactMatches
+      .map((match) => ({ match, dimensions: buildCompactDimensions(match, `${source} fallback`, Math.max(confidence - 1, 0)), score: scoreCompactDimensionMatch(normalized, match) }))
+      .filter(({ dimensions }) => dimensions)
+      .sort((a, b) => b.score - a.score)
 
-  if (fallbackMatches.length > 0) {
-    const fallback = fallbackMatches[0].dimensions
+    if (fallbackMatches.length > 0) {
+      const fallback = fallbackMatches[0].dimensions
 
-    return {
-      ...fallback,
-      warnings: [
-        ...fallback.warnings,
-        'Dimensions were found without a clear product-dimension label; verify width, depth, and height below.',
-      ],
+      return {
+        ...fallback,
+        warnings: [
+          ...fallback.warnings,
+          'Dimensions were found without a clear product-dimension label; verify width, depth, and height below.',
+        ],
+      }
     }
   }
 
   return null
 }
 
+function extractDimensionsFromUrl(url) {
+  const normalized = decodeURIComponent(url || '').replace(/[-_]+/g, ' ')
+
+  return extractLabeledSequenceDimensions(normalized, 'product URL', 3)
+}
+
 function extractDimensions(html, url = '') {
   return extractStructuredDimensions(html)
-    || extractDimensionsFromText(decodeURIComponent(url), 'product URL', 3, url)
+    || extractDimensionsFromUrl(url)
     || extractDimensionsFromText(extractTitle(html), 'page title', 2, url)
     || extractDimensionsFromText(html, 'page text', 1, url)
 }
@@ -613,6 +801,41 @@ function adjustDimensionsForShape(dimensions, html, shape) {
     depthCm: Math.round(slashDepthCm),
     source: `${dimensions.source} + chaise depth`,
   }
+}
+
+function estimateDimensionsFromProductText(html, url, shape) {
+  const text = `${extractTitle(html)} ${decodeURIComponent(url || '')}`.toLowerCase()
+  const warnings = ['Dimensions were not exposed by the product page, so this item uses a type-based estimate. Verify against the product specs.']
+
+  if (shape === 'sofa') {
+    if (/(3\s*-?\s*person|3\s*pers|3-personers|3\s*personers|three\s*seater)/i.test(text)) {
+      return { widthCm: 210, depthCm: 90, heightCm: 82, source: 'estimated 3-seat sofa', confidence: 0, warnings }
+    }
+
+    if (/(2\s*-?\s*person|2\s*pers|2-personers|2\s*personers|two\s*seater)/i.test(text)) {
+      return { widthCm: 170, depthCm: 88, heightCm: 82, source: 'estimated 2-seat sofa', confidence: 0, warnings }
+    }
+
+    return { widthCm: 200, depthCm: 90, heightCm: 82, source: 'estimated sofa', confidence: 0, warnings }
+  }
+
+  if (shape === 'chair') {
+    return { widthCm: 70, depthCm: 80, heightCm: 85, source: 'estimated chair', confidence: 0, warnings }
+  }
+
+  if (shape === 'rect-table') {
+    return { widthCm: 160, depthCm: 90, heightCm: 74, source: 'estimated table', confidence: 0, warnings }
+  }
+
+  if (shape === 'oval-table' || shape === 'round-table') {
+    return { widthCm: 120, depthCm: 120, heightCm: 74, source: 'estimated round/oval table', confidence: 0, warnings }
+  }
+
+  if (shape === 'cabinet') {
+    return { widthCm: 100, depthCm: 45, heightCm: 120, source: 'estimated cabinet', confidence: 0, warnings }
+  }
+
+  return null
 }
 
 function classifyFurnitureText(text) {
@@ -722,6 +945,35 @@ export default defineConfig({
           }
         })
 
+        server.middlewares.use('/api/model', async (request, response) => {
+          try {
+            const requestUrl = new URL(request.url, 'http://localhost')
+            const url = requestUrl.searchParams.get('url')
+
+            if (!url || !/^https?:\/\//i.test(url) || !/\.(?:glb|gltf)(?:\?|$)/i.test(url)) {
+              sendJson(response, 400, { error: 'Enter a valid GLB or GLTF model URL.' })
+              return
+            }
+
+            const fetchResponse = await fetch(url, {
+              headers: {
+                'User-Agent': 'Mozilla/5.0 ApartmentVisualizer/1.0',
+                Accept: 'model/gltf-binary,model/gltf+json,application/octet-stream,*/*;q=0.8',
+              },
+            })
+
+            if (!fetchResponse.ok) {
+              sendJson(response, 502, { error: `Model returned ${fetchResponse.status}.` })
+              return
+            }
+
+            const contentType = fetchResponse.headers.get('content-type') || (/\.gltf(?:\?|$)/i.test(url) ? 'model/gltf+json' : 'model/gltf-binary')
+            sendBinary(response, 200, Buffer.from(await fetchResponse.arrayBuffer()), contentType)
+          } catch (error) {
+            sendJson(response, 500, { error: error instanceof Error ? error.message : 'Could not fetch model.' })
+          }
+        })
+
         server.middlewares.use('/api/product', async (request, response) => {
           try {
             const requestUrl = new URL(request.url, 'http://localhost')
@@ -745,17 +997,23 @@ export default defineConfig({
             }
 
             const html = await fetchResponse.text()
-            const shape = classifyFurnitureType(html, url)
-            const parsedDimensions = extractDimensions(html, url)
+            const platformData = await extractPlatformProductData(url)
+            const productName = platformData?.name || extractTitle(html)
+            const productImageUrl = platformData?.imageUrl || extractImageUrl(html, url)
+            const productModelUrl = extractModelUrl(html, url)
+            const shape = classifyFurnitureText(`${productName} ${decodeURIComponent(url)}`) || classifyFurnitureType(html, url)
+            const parsedDimensions = platformData?.dimensions || extractDimensions(html, url)
 
-            if (!parsedDimensions) {
+            const estimatedDimensions = parsedDimensions ? null : estimateDimensionsFromProductText(html, url, shape)
+
+            if (!parsedDimensions && !estimatedDimensions) {
               sendJson(response, 422, { error: 'Could not find product dimensions on that page.' })
               return
             }
 
-            const dimensions = adjustDimensionsForShape(parsedDimensions, html, shape)
+            const dimensions = parsedDimensions ? adjustDimensionsForShape(parsedDimensions, html, shape) : estimatedDimensions
 
-            sendJson(response, 200, { name: extractTitle(html), url, imageUrl: extractImageUrl(html, url), shape, ...dimensions })
+            sendJson(response, 200, { name: productName, url, imageUrl: productImageUrl, modelUrl: productModelUrl, shape, ...dimensions })
           } catch (error) {
             sendJson(response, 500, { error: error instanceof Error ? error.message : 'Could not parse product page.' })
           }

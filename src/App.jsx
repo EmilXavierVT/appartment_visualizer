@@ -412,6 +412,30 @@ function FurnitureShape({ furniture }) {
   }
 }
 
+function RemoteFurnitureModel({ furniture }) {
+  const { scene } = useGLTF(`/api/model?url=${encodeURIComponent(furniture.modelUrl)}`)
+  const prepared = useMemo(() => {
+    const clone = scene.clone(true)
+    const box = new THREE.Box3().setFromObject(clone)
+    const center = box.getCenter(new THREE.Vector3())
+    const size = box.getSize(new THREE.Vector3())
+
+    clone.position.set(-center.x, -box.min.y, -center.z)
+    clone.traverse((child) => {
+      if (child.isMesh) {
+        child.castShadow = true
+        child.receiveShadow = true
+      }
+    })
+
+    return { model: clone, metrics: { width: size.x, depth: size.z, height: size.y } }
+  }, [scene])
+
+  const scale = getScale(prepared.metrics, furniture)
+
+  return <primitive object={prepared.model} scale={[scale.x, scale.y, scale.z]} />
+}
+
 function FurnitureModel({ furniture }) {
   if (!furniture) {
     return null
@@ -419,7 +443,7 @@ function FurnitureModel({ furniture }) {
 
   return (
     <group position={[furniture.x, 0, furniture.z]} rotation={[0, THREE.MathUtils.degToRad(furniture.rotation), 0]}>
-      <FurnitureShape furniture={furniture} />
+      {furniture.modelUrl ? <RemoteFurnitureModel furniture={furniture} /> : <FurnitureShape furniture={furniture} />}
       <FurnitureLabel furniture={furniture} />
     </group>
   )
@@ -432,6 +456,7 @@ function FurnitureElementControls({ item, targetMetrics, onChange, onRemove }) {
         <div>
           <h3>{item.name}</h3>
           <p>{formatFurnitureSize(item)}</p>
+          {item.modelUrl ? <p>Real 3D model applied</p> : null}
           {item.imageUrl ? <p>Product image applied</p> : null}
         </div>
         <button type="button" className="text-button" onClick={onRemove}>Remove</button>
@@ -523,6 +548,7 @@ export default function App() {
         rotation: 0,
         url: data.url,
         imageUrl: data.imageUrl,
+        modelUrl: data.modelUrl,
         shape: data.shape || 'box',
         source: data.source,
         warnings: data.warnings || [],
